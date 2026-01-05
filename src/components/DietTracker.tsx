@@ -1120,12 +1120,54 @@ export default function DietTracker() {
               {/* Add Meal Modal */}
               {addingMealToDay && (
                 <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-                  <div className="bg-white rounded-2xl max-w-md w-full p-6">
+                  <div className="bg-white rounded-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
                     <div className="flex justify-between items-center mb-4">
                       <h3 className="text-xl font-semibold text-gray-800">Add Meal to {addingMealToDay}</h3>
-                      <button onClick={() => { setAddingMealToDay(null); clearForm(); }} className="text-gray-500 hover:text-gray-700">
+                      <button onClick={() => { setAddingMealToDay(null); clearForm(); setShowRecipeSelector(false); }} className="text-gray-500 hover:text-gray-700">
                         <X className="w-6 h-6" />
                       </button>
+                    </div>
+
+                    {/* Recipe Selector */}
+                    <button
+                      onClick={() => setShowRecipeSelector(!showRecipeSelector)}
+                      className="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 mb-4"
+                    >
+                      <BookOpen className="w-5 h-5" />
+                      {showRecipeSelector ? 'Hide Recipes' : 'Choose from Recipes'}
+                    </button>
+
+                    {showRecipeSelector && (
+                      <div className="mb-4 bg-purple-50 border-2 border-purple-200 rounded-lg p-3 max-h-48 overflow-y-auto">
+                        {savedRecipes.length === 0 ? (
+                          <p className="text-gray-500 text-sm text-center">No saved recipes</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {savedRecipes.map((recipe) => (
+                              <button
+                                key={recipe.id}
+                                onClick={() => {
+                                  loadRecipe(recipe);
+                                  setShowRecipeSelector(false);
+                                }}
+                                className="w-full text-left p-2 bg-white hover:bg-purple-100 rounded-lg transition-colors"
+                              >
+                                <div className="font-medium text-gray-800">{recipe.name}</div>
+                                <div className="text-xs text-gray-500">{recipe.calories} cal • {recipe.protein}g protein</div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="relative mb-4">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-gray-300"></div>
+                      </div>
+                      <div className="relative flex justify-center text-sm">
+                        <span className="px-2 bg-white text-gray-500">or enter manually</span>
+                      </div>
                     </div>
                     
                     <div className="space-y-4">
@@ -1168,13 +1210,13 @@ export default function DietTracker() {
                       </div>
                       <div className="flex gap-3">
                         <button
-                          onClick={() => { setAddingMealToDay(null); clearForm(); }}
+                          onClick={() => { setAddingMealToDay(null); clearForm(); setShowRecipeSelector(false); }}
                           className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                         >
                           Cancel
                         </button>
                         <button
-                          onClick={() => addMealToWeeklyDay(addingMealToDay)}
+                          onClick={() => { addMealToWeeklyDay(addingMealToDay); setShowRecipeSelector(false); }}
                           className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
                         >
                           Add Meal
