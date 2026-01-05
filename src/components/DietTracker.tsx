@@ -1,12 +1,19 @@
-import { useState, useRef } from 'react';
-import { Plus, Trash2, TrendingUp, Camera, X, Calendar, Clock, BookOpen, Settings, Upload } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Plus, Trash2, TrendingUp, Camera, X, Calendar, Clock, BookOpen, Settings, Upload, FileText } from 'lucide-react';
 import { Meal, PlannedMeal, Recipe, DailyGoals, NutritionTotals, AnalyzedNutrition } from '../types';
 import { defaultRecipes } from '../data/recipes';
 import { ProgressBar } from './ProgressBar';
 
+interface JournalEntry {
+  date: string;
+  meals: Meal[];
+  totals: NutritionTotals;
+}
+
 export default function DietTracker() {
-  const [activeTab, setActiveTab] = useState<'today' | 'plan' | 'recipes'>('today');
+  const [activeTab, setActiveTab] = useState<'today' | 'plan' | 'recipes' | 'journal'>('today');
   const [meals, setMeals] = useState<Meal[]>([]);
+  const [journal, setJournal] = useState<JournalEntry[]>([]);
   const [plannedMeals, setPlannedMeals] = useState<PlannedMeal[]>([]);
   const [savedRecipes, setSavedRecipes] = useState<Recipe[]>(defaultRecipes);
   const [mealName, setMealName] = useState('');
@@ -36,6 +43,52 @@ export default function DietTracker() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  const getTodayDate = () => {
+    return new Date().toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
+  const saveToJournal = () => {
+    if (meals.length === 0) return;
+    
+    const todayTotals: NutritionTotals = meals.reduce((acc, meal) => ({
+      calories: acc.calories + meal.calories,
+      protein: acc.protein + meal.protein,
+      carbs: acc.carbs + meal.carbs,
+      fats: acc.fats + meal.fats
+    }), { calories: 0, protein: 0, carbs: 0, fats: 0 });
+
+    const entry: JournalEntry = {
+      date: getTodayDate(),
+      meals: [...meals],
+      totals: todayTotals
+    };
+
+    // Check if entry for today already exists
+    const existingIndex = journal.findIndex(j => j.date === entry.date);
+    if (existingIndex >= 0) {
+      const updatedJournal = [...journal];
+      updatedJournal[existingIndex] = entry;
+      setJournal(updatedJournal);
+    } else {
+      setJournal([entry, ...journal]);
+    }
+  };
+
+  const clearTodayAndSave = () => {
+    saveToJournal();
+    setMeals([]);
+    alert('Meals saved to journal and cleared for a new day!');
+  };
+
+  const deleteJournalEntry = (date: string) => {
+    setJournal(journal.filter(entry => entry.date !== date));
+  };
 
   const startCamera = async () => {
     try {
@@ -473,10 +526,10 @@ export default function DietTracker() {
           )}
 
           {/* Tab Navigation */}
-          <div className="flex gap-2 mb-6 border-b border-gray-200">
+          <div className="flex gap-2 mb-6 border-b border-gray-200 overflow-x-auto">
             <button
               onClick={() => setActiveTab('today')}
-              className={`flex items-center gap-2 px-4 py-2 font-semibold transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2 font-semibold transition-colors whitespace-nowrap ${
                 activeTab === 'today'
                   ? 'text-indigo-600 border-b-2 border-indigo-600'
                   : 'text-gray-500 hover:text-gray-700'
@@ -486,8 +539,19 @@ export default function DietTracker() {
               Today
             </button>
             <button
+              onClick={() => setActiveTab('journal')}
+              className={`flex items-center gap-2 px-4 py-2 font-semibold transition-colors whitespace-nowrap ${
+                activeTab === 'journal'
+                  ? 'text-indigo-600 border-b-2 border-indigo-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              Journal
+            </button>
+            <button
               onClick={() => setActiveTab('plan')}
-              className={`flex items-center gap-2 px-4 py-2 font-semibold transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2 font-semibold transition-colors whitespace-nowrap ${
                 activeTab === 'plan'
                   ? 'text-indigo-600 border-b-2 border-indigo-600'
                   : 'text-gray-500 hover:text-gray-700'
@@ -498,7 +562,7 @@ export default function DietTracker() {
             </button>
             <button
               onClick={() => setActiveTab('recipes')}
-              className={`flex items-center gap-2 px-4 py-2 font-semibold transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2 font-semibold transition-colors whitespace-nowrap ${
                 activeTab === 'recipes'
                   ? 'text-indigo-600 border-b-2 border-indigo-600'
                   : 'text-gray-500 hover:text-gray-700'
@@ -757,8 +821,83 @@ export default function DietTracker() {
                     ))}
                   </div>
                 )}
+
+                {/* End Day Button */}
+                {meals.length > 0 && (
+                  <button
+                    onClick={clearTodayAndSave}
+                    className="w-full mt-6 bg-orange-600 text-white py-3 rounded-lg font-semibold hover:bg-orange-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <FileText className="w-5 h-5" />
+                    End Day & Save to Journal
+                  </button>
+                )}
               </div>
             </>
+          )}
+
+          {/* Journal Tab */}
+          {activeTab === 'journal' && (
+            <div>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Meal Journal</h2>
+              {journal.length === 0 ? (
+                <div className="text-center py-12">
+                  <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 mb-2">No journal entries yet</p>
+                  <p className="text-sm text-gray-400">End your day from the Today tab to save meals to your journal</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {journal.map((entry) => (
+                    <div key={entry.date} className="bg-white border border-gray-200 rounded-xl p-5">
+                      <div className="flex justify-between items-start mb-4">
+                        <h3 className="text-lg font-semibold text-gray-800">{entry.date}</h3>
+                        <button
+                          onClick={() => deleteJournalEntry(entry.date)}
+                          className="text-red-500 hover:text-red-700 transition-colors"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                      
+                      {/* Daily Totals */}
+                      <div className="grid grid-cols-4 gap-3 mb-4">
+                        <div className="bg-indigo-50 rounded-lg p-3 text-center">
+                          <div className="text-xs text-gray-600">Calories</div>
+                          <div className="text-lg font-bold text-indigo-600">{Math.round(entry.totals.calories)}</div>
+                        </div>
+                        <div className="bg-red-50 rounded-lg p-3 text-center">
+                          <div className="text-xs text-gray-600">Protein</div>
+                          <div className="text-lg font-bold text-red-600">{Math.round(entry.totals.protein)}g</div>
+                        </div>
+                        <div className="bg-yellow-50 rounded-lg p-3 text-center">
+                          <div className="text-xs text-gray-600">Carbs</div>
+                          <div className="text-lg font-bold text-yellow-600">{Math.round(entry.totals.carbs)}g</div>
+                        </div>
+                        <div className="bg-green-50 rounded-lg p-3 text-center">
+                          <div className="text-xs text-gray-600">Fats</div>
+                          <div className="text-lg font-bold text-green-600">{Math.round(entry.totals.fats)}g</div>
+                        </div>
+                      </div>
+
+                      {/* Meals List */}
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-gray-600">Meals:</h4>
+                        {entry.meals.map((meal) => (
+                          <div key={meal.id} className="bg-gray-50 rounded-lg p-3 flex justify-between items-center">
+                            <div>
+                              <span className="font-medium text-gray-800">{meal.name}</span>
+                              <span className="text-sm text-gray-500 ml-2">{meal.time}</span>
+                            </div>
+                            <span className="text-sm text-indigo-600 font-medium">{meal.calories} cal</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Recipes Tab */}
