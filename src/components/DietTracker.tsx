@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Plus, Trash2, TrendingUp, Camera, X, Calendar, Clock, BookOpen, Settings, Upload, FileText } from 'lucide-react';
 import { Meal, PlannedMeal, Recipe, DailyGoals, NutritionTotals, AnalyzedNutrition } from '../types';
 import { defaultRecipes } from '../data/recipes';
