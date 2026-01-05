@@ -1027,6 +1027,7 @@ export default function DietTracker() {
                   const todayData = day.isToday ? getTodaysMealsForWeekly() : null;
                   const dayMeals = day.isToday ? todayData?.meals : journalEntry?.meals;
                   const dayTotals = day.isToday ? todayData?.totals : journalEntry?.totals;
+                  const dayPlannedMeals = plannedMeals.filter(meal => meal.day === day.dayName);
                   
                   return (
                     <div 
@@ -1053,8 +1054,10 @@ export default function DietTracker() {
                         )}
                       </div>
                       
-                      {dayMeals && dayMeals.length > 0 ? (
-                        <div className="space-y-2">
+                      {/* Logged Meals */}
+                      {dayMeals && dayMeals.length > 0 && (
+                        <div className="space-y-2 mb-3">
+                          <h4 className="text-xs font-medium text-gray-500 uppercase">Logged</h4>
                           {dayMeals.map((meal) => (
                             <div key={meal.id} className="bg-gray-50 rounded-lg p-2 flex justify-between items-center">
                               <div className="flex items-center gap-2">
@@ -1065,8 +1068,36 @@ export default function DietTracker() {
                             </div>
                           ))}
                         </div>
-                      ) : (
-                        <p className="text-sm text-gray-400 italic">No meals logged</p>
+                      )}
+
+                      {/* Planned Meals */}
+                      {dayPlannedMeals.length > 0 && (
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-medium text-purple-500 uppercase">Planned</h4>
+                          {dayPlannedMeals.map((meal) => (
+                            <div key={meal.id} className="bg-purple-50 border border-purple-100 rounded-lg p-2 flex justify-between items-center">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-purple-800">{meal.name}</span>
+                                {meal.time && <span className="text-xs text-purple-400">{meal.time}</span>}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-purple-600 font-medium">{meal.calories} cal</span>
+                                {day.isToday && (
+                                  <button
+                                    onClick={() => logPlannedMeal(meal)}
+                                    className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 transition-colors"
+                                  >
+                                    Log
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {(!dayMeals || dayMeals.length === 0) && dayPlannedMeals.length === 0 && (
+                        <p className="text-sm text-gray-400 italic">No meals logged or planned</p>
                       )}
                     </div>
                   );
