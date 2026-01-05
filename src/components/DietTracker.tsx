@@ -355,6 +355,19 @@ export default function DietTracker() {
     setMeals([...meals, newMeal]);
   };
 
+  const quickLogRecipe = (recipe: Recipe) => {
+    const newMeal: Meal = {
+      id: Date.now(),
+      name: recipe.name,
+      calories: recipe.calories,
+      protein: recipe.protein,
+      carbs: recipe.carbs,
+      fats: recipe.fats,
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    };
+    setMeals([...meals, newMeal]);
+  };
+
   const deleteMeal = (id: number) => {
     setMeals(meals.filter(meal => meal.id !== id));
   };
@@ -877,6 +890,16 @@ export default function DietTracker() {
                         </div>
                       </div>
                       <div className="space-y-2">
+                        <button
+                          onClick={() => {
+                            quickLogRecipe(recipe);
+                            alert(`${recipe.name} added to today's meals!`);
+                          }}
+                          className="w-full bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors text-sm flex items-center justify-center gap-2"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Quick Log Today
+                        </button>
                         <button
                           onClick={() => setSelectedRecipe(recipe)}
                           className="w-full bg-gray-600 text-white py-2 rounded-lg font-semibold hover:bg-gray-700 transition-colors text-sm"
