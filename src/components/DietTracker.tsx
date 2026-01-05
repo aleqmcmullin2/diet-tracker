@@ -55,6 +55,7 @@ export default function DietTracker() {
   const [analyzingRecipe, setAnalyzingRecipe] = useState(false);
   const [editingJournalDate, setEditingJournalDate] = useState<string | null>(null);
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
+  const [addingMealToDay, setAddingMealToDay] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -258,6 +259,100 @@ export default function DietTracker() {
   const getTodaysMealsForWeekly = () => {
     const todayDate = getTodayDate();
     return { date: todayDate, meals, totals };
+  };
+
+  const addMealToWeeklyDay = (dayName: string) => {
+    if (!mealName || !calories) return;
+    
+    const weekDates = getWeekDates();
+    const dayData = weekDates.find(d => d.dayName === dayName);
+    
+    if (dayData?.isToday) {
+      // Add to today's meals
+      const newMeal: Meal = {
+        id: Date.now(),
+        name: mealName,
+        calories: parseFloat(calories) || 0,
+        protein: parseFloat(protein) || 0,
+        carbs: parseFloat(carbs) || 0,
+        fats: parseFloat(fats) || 0,
+        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      };
+      setMeals([...meals, newMeal]);
+    } else if (dayData) {
+      // Add to journal for that day
+      const existingEntry = journal.find(e => e.date === dayData.dateString);
+      
+      const newMeal: Meal = {
+        id: Date.now(),
+        name: mealName,
+        calories: parseFloat(calories) || 0,
+        protein: parseFloat(protein) || 0,
+        carbs: parseFloat(carbs) || 0,
+        fats: parseFloat(fats) || 0,
+        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      };
+
+      if (existingEntry) {
+        // Update existing journal entry
+        setJournal(journal.map(entry => {
+          if (entry.date === dayData.dateString) {
+            const updatedMeals = [...entry.meals, newMeal];
+            const updatedTotals = updatedMeals.reduce((acc, meal) => ({
+              calories: acc.calories + meal.calories,
+              protein: acc.protein + meal.protein,
+              carbs: acc.carbs + meal.carbs,
+              fats: acc.fats + meal.fats
+            }), { calories: 0, protein: 0, carbs: 0, fats: 0 });
+            return { ...entry, meals: updatedMeals, totals: updatedTotals };
+          }
+          return entry;
+        }));
+      } else {
+        // Create new journal entry
+        const newEntry: JournalEntry = {
+          date: dayData.dateString,
+          meals: [newMeal],
+          totals: {
+            calories: newMeal.calories,
+            protein: newMeal.protein,
+            carbs: newMeal.carbs,
+            fats: newMeal.fats
+          }
+        };
+        setJournal([newEntry, ...journal]);
+      }
+    }
+    
+    clearForm();
+    setAddingMealToDay(null);
+  };
+
+  const deleteMealFromWeeklyDay = (dayName: string, mealId: number) => {
+    const weekDates = getWeekDates();
+    const dayData = weekDates.find(d => d.dayName === dayName);
+    
+    if (dayData?.isToday) {
+      setMeals(meals.filter(meal => meal.id !== mealId));
+    } else if (dayData) {
+      setJournal(journal.map(entry => {
+        if (entry.date === dayData.dateString) {
+          const updatedMeals = entry.meals.filter(meal => meal.id !== mealId);
+          const updatedTotals = updatedMeals.reduce((acc, meal) => ({
+            calories: acc.calories + meal.calories,
+            protein: acc.protein + meal.protein,
+            carbs: acc.carbs + meal.carbs,
+            fats: acc.fats + meal.fats
+          }), { calories: 0, protein: 0, carbs: 0, fats: 0 });
+          return { ...entry, meals: updatedMeals, totals: updatedTotals };
+        }
+        return entry;
+      }).filter(entry => entry.meals.length > 0));
+    }
+  };
+
+  const deletePlannedMealFromWeekly = (mealId: number) => {
+    setPlannedMeals(plannedMeals.filter(meal => meal.id !== mealId));
   };
 
   const startCamera = async () => {
@@ -1021,6 +1116,75 @@ export default function DietTracker() {
           {activeTab === 'weekly' && (
             <div>
               <h2 className="text-xl font-semibold text-gray-800 mb-4">This Week's Meals</h2>
+
+              {/* Add Meal Modal */}
+              {addingMealToDay && (
+                <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white rounded-2xl max-w-md w-full p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-semibold text-gray-800">Add Meal to {addingMealToDay}</h3>
+                      <button onClick={() => { setAddingMealToDay(null); clearForm(); }} className="text-gray-500 hover:text-gray-700">
+                        <X className="w-6 h-6" />
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <input
+                        type="text"
+                        placeholder="Meal name"
+                        value={mealName}
+                        onChange={(e) => setMealName(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Calories"
+                        value={calories}
+                        onChange={(e) => setCalories(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                      <div className="grid grid-cols-3 gap-3">
+                        <input
+                          type="number"
+                          placeholder="Protein (g)"
+                          value={protein}
+                          onChange={(e) => setProtein(e.target.value)}
+                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Carbs (g)"
+                          value={carbs}
+                          onChange={(e) => setCarbs(e.target.value)}
+                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Fats (g)"
+                          value={fats}
+                          onChange={(e) => setFats(e.target.value)}
+                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => { setAddingMealToDay(null); clearForm(); }}
+                          className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => addMealToWeeklyDay(addingMealToDay)}
+                          className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                        >
+                          Add Meal
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-4">
                 {getWeekDates().map((day) => {
                   const journalEntry = getJournalEntryByDate(day.dateString);
@@ -1044,14 +1208,23 @@ export default function DietTracker() {
                           </h3>
                           <p className="text-sm text-gray-500">{day.shortDate}</p>
                         </div>
-                        {dayTotals && (
-                          <div className="text-right">
-                            <div className="text-lg font-bold text-indigo-600">{Math.round(dayTotals.calories)} cal</div>
-                            <div className="text-xs text-gray-500">
-                              P: {Math.round(dayTotals.protein || 0)}g • C: {Math.round(dayTotals.carbs || 0)}g • F: {Math.round(dayTotals.fats || 0)}g
+                        <div className="flex items-center gap-3">
+                          {dayTotals && (
+                            <div className="text-right">
+                              <div className="text-lg font-bold text-indigo-600">{Math.round(dayTotals.calories)} cal</div>
+                              <div className="text-xs text-gray-500">
+                                P: {Math.round(dayTotals.protein || 0)}g • C: {Math.round(dayTotals.carbs || 0)}g • F: {Math.round(dayTotals.fats || 0)}g
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
+                          <button
+                            onClick={() => setAddingMealToDay(day.dayName)}
+                            className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
+                            title="Add meal"
+                          >
+                            <Plus className="w-5 h-5" />
+                          </button>
+                        </div>
                       </div>
                       
                       {/* Logged Meals */}
@@ -1064,7 +1237,16 @@ export default function DietTracker() {
                                 <span className="text-sm font-medium text-gray-800">{meal.name}</span>
                                 <span className="text-xs text-gray-400">{meal.time}</span>
                               </div>
-                              <span className="text-sm text-indigo-600 font-medium">{meal.calories} cal</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-indigo-600 font-medium">{meal.calories} cal</span>
+                                <button
+                                  onClick={() => deleteMealFromWeeklyDay(day.dayName, meal.id)}
+                                  className="text-red-400 hover:text-red-600 transition-colors"
+                                  title="Delete meal"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1090,6 +1272,13 @@ export default function DietTracker() {
                                     Log
                                   </button>
                                 )}
+                                <button
+                                  onClick={() => deletePlannedMealFromWeekly(meal.id)}
+                                  className="text-red-400 hover:text-red-600 transition-colors"
+                                  title="Delete planned meal"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
                               </div>
                             </div>
                           ))}
