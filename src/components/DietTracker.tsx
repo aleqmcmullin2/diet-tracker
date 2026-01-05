@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Plus, Trash2, TrendingUp, Camera, X, Calendar, Clock, BookOpen, Settings, Upload, FileText } from 'lucide-react';
 import { Meal, PlannedMeal, Recipe, DailyGoals, NutritionTotals, AnalyzedNutrition } from '../types';
 import { defaultRecipes } from '../data/recipes';
@@ -12,10 +12,22 @@ interface JournalEntry {
 
 export default function DietTracker() {
   const [activeTab, setActiveTab] = useState<'today' | 'plan' | 'recipes' | 'journal'>('today');
-  const [meals, setMeals] = useState<Meal[]>([]);
-  const [journal, setJournal] = useState<JournalEntry[]>([]);
-  const [plannedMeals, setPlannedMeals] = useState<PlannedMeal[]>([]);
-  const [savedRecipes, setSavedRecipes] = useState<Recipe[]>(defaultRecipes);
+  const [meals, setMeals] = useState<Meal[]>(() => {
+    const saved = localStorage.getItem('mealTracker_meals');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [journal, setJournal] = useState<JournalEntry[]>(() => {
+    const saved = localStorage.getItem('mealTracker_journal');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [plannedMeals, setPlannedMeals] = useState<PlannedMeal[]>(() => {
+    const saved = localStorage.getItem('mealTracker_plannedMeals');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [savedRecipes, setSavedRecipes] = useState<Recipe[]>(() => {
+    const saved = localStorage.getItem('mealTracker_recipes');
+    return saved ? JSON.parse(saved) : defaultRecipes;
+  });
   const [mealName, setMealName] = useState('');
   const [calories, setCalories] = useState('');
   const [protein, setProtein] = useState('');
@@ -24,11 +36,14 @@ export default function DietTracker() {
   const [selectedDay, setSelectedDay] = useState('Monday');
   const [mealTime, setMealTime] = useState('');
   const [showRecipeSelector, setShowRecipeSelector] = useState(false);
-  const [dailyGoals, setDailyGoals] = useState<DailyGoals>({
-    calories: 2000,
-    protein: 150,
-    carbs: 250,
-    fats: 65
+  const [dailyGoals, setDailyGoals] = useState<DailyGoals>(() => {
+    const saved = localStorage.getItem('mealTracker_goals');
+    return saved ? JSON.parse(saved) : {
+      calories: 2000,
+      protein: 150,
+      carbs: 250,
+      fats: 65
+    };
   });
   const [showSettings, setShowSettings] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
@@ -41,6 +56,27 @@ export default function DietTracker() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Save to localStorage whenever data changes
+  useEffect(() => {
+    localStorage.setItem('mealTracker_meals', JSON.stringify(meals));
+  }, [meals]);
+
+  useEffect(() => {
+    localStorage.setItem('mealTracker_journal', JSON.stringify(journal));
+  }, [journal]);
+
+  useEffect(() => {
+    localStorage.setItem('mealTracker_plannedMeals', JSON.stringify(plannedMeals));
+  }, [plannedMeals]);
+
+  useEffect(() => {
+    localStorage.setItem('mealTracker_recipes', JSON.stringify(savedRecipes));
+  }, [savedRecipes]);
+
+  useEffect(() => {
+    localStorage.setItem('mealTracker_goals', JSON.stringify(dailyGoals));
+  }, [dailyGoals]);
 
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
