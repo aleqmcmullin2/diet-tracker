@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, TrendingUp, Camera, X, Calendar, Clock, BookOpen, Settings, Upload, FileText, Edit2 } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, Camera, X, Calendar, Clock, BookOpen, Settings, Upload, FileText, Edit2, LayoutGrid } from 'lucide-react';
 import { Meal, PlannedMeal, Recipe, DailyGoals, NutritionTotals, AnalyzedNutrition } from '../types';
 import { defaultRecipes } from '../data/recipes';
 import { ProgressBar } from './ProgressBar';
@@ -11,7 +11,7 @@ interface JournalEntry {
 }
 
 export default function DietTracker() {
-  const [activeTab, setActiveTab] = useState<'today' | 'plan' | 'recipes' | 'journal'>('today');
+  const [activeTab, setActiveTab] = useState<'today' | 'weekly' | 'plan' | 'recipes' | 'journal'>('today');
   const [meals, setMeals] = useState<Meal[]>(() => {
     const saved = localStorage.getItem('mealTracker_meals');
     return saved ? JSON.parse(saved) : [];
@@ -221,6 +221,43 @@ export default function DietTracker() {
     
     clearForm();
     setEditingJournalDate(null);
+  };
+
+  const getWeekDates = () => {
+    const today = new Date();
+    const currentDay = today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - (currentDay === 0 ? 6 : currentDay - 1));
+    
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      weekDates.push({
+        dayName: daysOfWeek[i],
+        dateString: date.toLocaleDateString('en-US', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        }),
+        shortDate: date.toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric' 
+        }),
+        isToday: date.toDateString() === today.toDateString()
+      });
+    }
+    return weekDates;
+  };
+
+  const getJournalEntryByDate = (dateString: string) => {
+    return journal.find(entry => entry.date === dateString);
+  };
+
+  const getTodaysMealsForWeekly = () => {
+    const todayDate = getTodayDate();
+    return { date: todayDate, meals, totals };
   };
 
   const startCamera = async () => {
@@ -672,6 +709,17 @@ export default function DietTracker() {
               Today
             </button>
             <button
+              onClick={() => setActiveTab('weekly')}
+              className={`flex items-center gap-2 px-4 py-2 font-semibold transition-colors whitespace-nowrap ${
+                activeTab === 'weekly'
+                  ? 'text-indigo-600 border-b-2 border-indigo-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+              Weekly
+            </button>
+            <button
               onClick={() => setActiveTab('journal')}
               className={`flex items-center gap-2 px-4 py-2 font-semibold transition-colors whitespace-nowrap ${
                 activeTab === 'journal'
@@ -967,6 +1015,112 @@ export default function DietTracker() {
                 )}
               </div>
             </>
+          )}
+
+          {/* Weekly Tab */}
+          {activeTab === 'weekly' && (
+            <div>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">This Week's Meals</h2>
+              <div className="space-y-4">
+                {getWeekDates().map((day) => {
+                  const journalEntry = getJournalEntryByDate(day.dateString);
+                  const todayData = day.isToday ? getTodaysMealsForWeekly() : null;
+                  const dayMeals = day.isToday ? todayData?.meals : journalEntry?.meals;
+                  const dayTotals = day.isToday ? todayData?.totals : journalEntry?.totals;
+                  
+                  return (
+                    <div 
+                      key={day.dayName} 
+                      className={`bg-white border rounded-xl p-4 ${
+                        day.isToday ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-gray-200'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center mb-3">
+                        <div>
+                          <h3 className={`font-semibold ${day.isToday ? 'text-indigo-600' : 'text-gray-800'}`}>
+                            {day.dayName}
+                            {day.isToday && <span className="ml-2 text-xs bg-indigo-100 text-indigo-600 px-2 py-1 rounded-full">Today</span>}
+                          </h3>
+                          <p className="text-sm text-gray-500">{day.shortDate}</p>
+                        </div>
+                        {dayTotals && (
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-indigo-600">{Math.round(dayTotals.calories)} cal</div>
+                            <div className="text-xs text-gray-500">
+                              P: {Math.round(dayTotals.protein || 0)}g • C: {Math.round(dayTotals.carbs || 0)}g • F: {Math.round(dayTotals.fats || 0)}g
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {dayMeals && dayMeals.length > 0 ? (
+                        <div className="space-y-2">
+                          {dayMeals.map((meal) => (
+                            <div key={meal.id} className="bg-gray-50 rounded-lg p-2 flex justify-between items-center">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-gray-800">{meal.name}</span>
+                                <span className="text-xs text-gray-400">{meal.time}</span>
+                              </div>
+                              <span className="text-sm text-indigo-600 font-medium">{meal.calories} cal</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400 italic">No meals logged</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              
+              {/* Weekly Summary */}
+              <div className="mt-6 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl p-5">
+                <h3 className="font-semibold text-gray-800 mb-3">Weekly Summary</h3>
+                {(() => {
+                  const weekDates = getWeekDates();
+                  let totalCals = 0, totalProtein = 0, totalCarbs = 0, totalFats = 0, daysWithMeals = 0;
+                  
+                  weekDates.forEach(day => {
+                    const journalEntry = getJournalEntryByDate(day.dateString);
+                    const todayData = day.isToday ? getTodaysMealsForWeekly() : null;
+                    const dayTotals = day.isToday ? todayData?.totals : journalEntry?.totals;
+                    
+                    if (dayTotals && dayTotals.calories > 0) {
+                      totalCals += dayTotals.calories;
+                      totalProtein += dayTotals.protein || 0;
+                      totalCarbs += dayTotals.carbs || 0;
+                      totalFats += dayTotals.fats || 0;
+                      daysWithMeals++;
+                    }
+                  });
+                  
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="bg-white rounded-lg p-3 text-center">
+                        <div className="text-xs text-gray-600">Total Calories</div>
+                        <div className="text-xl font-bold text-indigo-600">{Math.round(totalCals)}</div>
+                        <div className="text-xs text-gray-400">Avg: {daysWithMeals > 0 ? Math.round(totalCals / daysWithMeals) : 0}/day</div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 text-center">
+                        <div className="text-xs text-gray-600">Total Protein</div>
+                        <div className="text-xl font-bold text-red-600">{Math.round(totalProtein)}g</div>
+                        <div className="text-xs text-gray-400">Avg: {daysWithMeals > 0 ? Math.round(totalProtein / daysWithMeals) : 0}g/day</div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 text-center">
+                        <div className="text-xs text-gray-600">Total Carbs</div>
+                        <div className="text-xl font-bold text-yellow-600">{Math.round(totalCarbs)}g</div>
+                        <div className="text-xs text-gray-400">Avg: {daysWithMeals > 0 ? Math.round(totalCarbs / daysWithMeals) : 0}g/day</div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 text-center">
+                        <div className="text-xs text-gray-600">Total Fats</div>
+                        <div className="text-xl font-bold text-green-600">{Math.round(totalFats)}g</div>
+                        <div className="text-xs text-gray-400">Avg: {daysWithMeals > 0 ? Math.round(totalFats / daysWithMeals) : 0}g/day</div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
           )}
 
           {/* Journal Tab */}
