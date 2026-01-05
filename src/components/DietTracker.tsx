@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, TrendingUp, Camera, X, Calendar, Clock, BookOpen, Settings, Upload, FileText } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, Camera, X, Calendar, Clock, BookOpen, Settings, Upload, FileText, Edit2 } from 'lucide-react';
 import { Meal, PlannedMeal, Recipe, DailyGoals, NutritionTotals, AnalyzedNutrition } from '../types';
 import { defaultRecipes } from '../data/recipes';
 import { ProgressBar } from './ProgressBar';
@@ -53,6 +53,8 @@ export default function DietTracker() {
   const [showRecipeCamera, setShowRecipeCamera] = useState(false);
   const [recipeCapturedImage, setRecipeCapturedImage] = useState<string | null>(null);
   const [analyzingRecipe, setAnalyzingRecipe] = useState(false);
+  const [editingJournalDate, setEditingJournalDate] = useState<string | null>(null);
+  const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -124,6 +126,101 @@ export default function DietTracker() {
 
   const deleteJournalEntry = (date: string) => {
     setJournal(journal.filter(entry => entry.date !== date));
+  };
+
+  const deleteJournalMeal = (date: string, mealId: number) => {
+    setJournal(journal.map(entry => {
+      if (entry.date === date) {
+        const updatedMeals = entry.meals.filter(meal => meal.id !== mealId);
+        const updatedTotals = updatedMeals.reduce((acc, meal) => ({
+          calories: acc.calories + meal.calories,
+          protein: acc.protein + meal.protein,
+          carbs: acc.carbs + meal.carbs,
+          fats: acc.fats + meal.fats
+        }), { calories: 0, protein: 0, carbs: 0, fats: 0 });
+        return { ...entry, meals: updatedMeals, totals: updatedTotals };
+      }
+      return entry;
+    }).filter(entry => entry.meals.length > 0));
+  };
+
+  const startEditMeal = (date: string, meal: Meal) => {
+    setEditingJournalDate(date);
+    setEditingMeal(meal);
+    setMealName(meal.name);
+    setCalories(meal.calories.toString());
+    setProtein(meal.protein.toString());
+    setCarbs(meal.carbs.toString());
+    setFats(meal.fats.toString());
+  };
+
+  const saveEditedMeal = () => {
+    if (!editingJournalDate || !editingMeal) return;
+    
+    setJournal(journal.map(entry => {
+      if (entry.date === editingJournalDate) {
+        const updatedMeals = entry.meals.map(meal => {
+          if (meal.id === editingMeal.id) {
+            return {
+              ...meal,
+              name: mealName,
+              calories: parseFloat(calories) || 0,
+              protein: parseFloat(protein) || 0,
+              carbs: parseFloat(carbs) || 0,
+              fats: parseFloat(fats) || 0
+            };
+          }
+          return meal;
+        });
+        const updatedTotals = updatedMeals.reduce((acc, meal) => ({
+          calories: acc.calories + meal.calories,
+          protein: acc.protein + meal.protein,
+          carbs: acc.carbs + meal.carbs,
+          fats: acc.fats + meal.fats
+        }), { calories: 0, protein: 0, carbs: 0, fats: 0 });
+        return { ...entry, meals: updatedMeals, totals: updatedTotals };
+      }
+      return entry;
+    }));
+    
+    cancelEditMeal();
+  };
+
+  const cancelEditMeal = () => {
+    setEditingJournalDate(null);
+    setEditingMeal(null);
+    clearForm();
+  };
+
+  const addMealToJournalEntry = (date: string) => {
+    if (!mealName || !calories) return;
+    
+    const newMeal: Meal = {
+      id: Date.now(),
+      name: mealName,
+      calories: parseFloat(calories) || 0,
+      protein: parseFloat(protein) || 0,
+      carbs: parseFloat(carbs) || 0,
+      fats: parseFloat(fats) || 0,
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setJournal(journal.map(entry => {
+      if (entry.date === date) {
+        const updatedMeals = [...entry.meals, newMeal];
+        const updatedTotals = updatedMeals.reduce((acc, meal) => ({
+          calories: acc.calories + meal.calories,
+          protein: acc.protein + meal.protein,
+          carbs: acc.carbs + meal.carbs,
+          fats: acc.fats + meal.fats
+        }), { calories: 0, protein: 0, carbs: 0, fats: 0 });
+        return { ...entry, meals: updatedMeals, totals: updatedTotals };
+      }
+      return entry;
+    }));
+    
+    clearForm();
+    setEditingJournalDate(null);
   };
 
   const startCamera = async () => {
@@ -876,6 +973,143 @@ export default function DietTracker() {
           {activeTab === 'journal' && (
             <div>
               <h2 className="text-xl font-semibold text-gray-800 mb-4">Meal Journal</h2>
+              
+              {/* Edit Meal Modal */}
+              {editingMeal && (
+                <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white rounded-2xl max-w-md w-full p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-semibold text-gray-800">Edit Meal</h3>
+                      <button onClick={cancelEditMeal} className="text-gray-500 hover:text-gray-700">
+                        <X className="w-6 h-6" />
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <input
+                        type="text"
+                        placeholder="Meal name"
+                        value={mealName}
+                        onChange={(e) => setMealName(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Calories"
+                        value={calories}
+                        onChange={(e) => setCalories(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                      <div className="grid grid-cols-3 gap-3">
+                        <input
+                          type="number"
+                          placeholder="Protein (g)"
+                          value={protein}
+                          onChange={(e) => setProtein(e.target.value)}
+                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Carbs (g)"
+                          value={carbs}
+                          onChange={(e) => setCarbs(e.target.value)}
+                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Fats (g)"
+                          value={fats}
+                          onChange={(e) => setFats(e.target.value)}
+                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={cancelEditMeal}
+                          className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={saveEditedMeal}
+                          className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
+                        >
+                          Save Changes
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Add Meal to Past Day Modal */}
+              {editingJournalDate && !editingMeal && (
+                <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white rounded-2xl max-w-md w-full p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-semibold text-gray-800">Add Meal to {editingJournalDate}</h3>
+                      <button onClick={() => setEditingJournalDate(null)} className="text-gray-500 hover:text-gray-700">
+                        <X className="w-6 h-6" />
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <input
+                        type="text"
+                        placeholder="Meal name"
+                        value={mealName}
+                        onChange={(e) => setMealName(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Calories"
+                        value={calories}
+                        onChange={(e) => setCalories(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                      <div className="grid grid-cols-3 gap-3">
+                        <input
+                          type="number"
+                          placeholder="Protein (g)"
+                          value={protein}
+                          onChange={(e) => setProtein(e.target.value)}
+                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Carbs (g)"
+                          value={carbs}
+                          onChange={(e) => setCarbs(e.target.value)}
+                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Fats (g)"
+                          value={fats}
+                          onChange={(e) => setFats(e.target.value)}
+                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setEditingJournalDate(null)}
+                          className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => addMealToJournalEntry(editingJournalDate)}
+                          className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                        >
+                          Add Meal
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {journal.length === 0 ? (
                 <div className="text-center py-12">
                   <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -888,12 +1122,22 @@ export default function DietTracker() {
                     <div key={entry.date} className="bg-white border border-gray-200 rounded-xl p-5">
                       <div className="flex justify-between items-start mb-4">
                         <h3 className="text-lg font-semibold text-gray-800">{entry.date}</h3>
-                        <button
-                          onClick={() => deleteJournalEntry(entry.date)}
-                          className="text-red-500 hover:text-red-700 transition-colors"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setEditingJournalDate(entry.date)}
+                            className="text-green-600 hover:text-green-700 transition-colors"
+                            title="Add meal"
+                          >
+                            <Plus className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => deleteJournalEntry(entry.date)}
+                            className="text-red-500 hover:text-red-700 transition-colors"
+                            title="Delete day"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
                       </div>
                       
                       {/* Daily Totals */}
@@ -925,7 +1169,23 @@ export default function DietTracker() {
                               <span className="font-medium text-gray-800">{meal.name}</span>
                               <span className="text-sm text-gray-500 ml-2">{meal.time}</span>
                             </div>
-                            <span className="text-sm text-indigo-600 font-medium">{meal.calories} cal</span>
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm text-indigo-600 font-medium">{meal.calories} cal</span>
+                              <button
+                                onClick={() => startEditMeal(entry.date, meal)}
+                                className="text-indigo-500 hover:text-indigo-700 transition-colors"
+                                title="Edit meal"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => deleteJournalMeal(entry.date, meal.id)}
+                                className="text-red-500 hover:text-red-700 transition-colors"
+                                title="Delete meal"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
