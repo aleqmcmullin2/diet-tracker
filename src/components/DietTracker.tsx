@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, TrendingUp, Camera, X, Calendar, Clock, BookOpen, Settings, Upload, FileText, Edit2, LayoutGrid } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, Camera, X, Calendar, Clock, BookOpen, Settings, Upload, FileText, Edit2, LayoutGrid, LogOut, User } from 'lucide-react';
 import { Meal, PlannedMeal, Recipe, DailyGoals, NutritionTotals, AnalyzedNutrition } from '../types';
 import { defaultRecipes } from '../data/recipes';
 import { ProgressBar } from './ProgressBar';
+import { useAuth } from '../contexts/AuthContext';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface JournalEntry {
   date: string;
@@ -11,23 +14,13 @@ interface JournalEntry {
 }
 
 export default function DietTracker() {
+  const { user, signInWithGoogle, logout, loading: authLoading } = useAuth();
+  
   const [activeTab, setActiveTab] = useState<'today' | 'weekly' | 'plan' | 'recipes' | 'journal'>('today');
-  const [meals, setMeals] = useState<Meal[]>(() => {
-    const saved = localStorage.getItem('mealTracker_meals');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [journal, setJournal] = useState<JournalEntry[]>(() => {
-    const saved = localStorage.getItem('mealTracker_journal');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [plannedMeals, setPlannedMeals] = useState<PlannedMeal[]>(() => {
-    const saved = localStorage.getItem('mealTracker_plannedMeals');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [savedRecipes, setSavedRecipes] = useState<Recipe[]>(() => {
-    const saved = localStorage.getItem('mealTracker_recipes');
-    return saved ? JSON.parse(saved) : defaultRecipes;
-  });
+  const [meals, setMeals] = useState<Meal[]>([]);
+  const [journal, setJournal] = useState<JournalEntry[]>([]);
+  const [plannedMeals, setPlannedMeals] = useState<PlannedMeal[]>([]);
+  const [savedRecipes, setSavedRecipes] = useState<Recipe[]>(defaultRecipes);
   const [mealName, setMealName] = useState('');
   const [calories, setCalories] = useState('');
   const [protein, setProtein] = useState('');
@@ -36,14 +29,11 @@ export default function DietTracker() {
   const [selectedDay, setSelectedDay] = useState('Monday');
   const [mealTime, setMealTime] = useState('');
   const [showRecipeSelector, setShowRecipeSelector] = useState(false);
-  const [dailyGoals, setDailyGoals] = useState<DailyGoals>(() => {
-    const saved = localStorage.getItem('mealTracker_goals');
-    return saved ? JSON.parse(saved) : {
-      calories: 2000,
-      protein: 150,
-      carbs: 250,
-      fats: 65
-    };
+  const [dailyGoals, setDailyGoals] = useState<DailyGoals>({
+    calories: 2000,
+    protein: 150,
+    carbs: 250,
+    fats: 65
   });
   const [showSettings, setShowSettings] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
@@ -56,32 +46,120 @@ export default function DietTracker() {
   const [editingJournalDate, setEditingJournalDate] = useState<string | null>(null);
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
   const [addingMealToDay, setAddingMealToDay] = useState<string | null>(null);
+  const [dataLoading, setDataLoading] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Save to localStorage whenever data changes
+  // Load data from Firestore when user logs in
   useEffect(() => {
-    localStorage.setItem('mealTracker_meals', JSON.stringify(meals));
+    if (!user) {
+      setDataLoading(false);
+      return;
+    }
+
+    const userDocRef = doc(db, 'users', user.uid);
+    
+    const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setMeals(data.meals || []);
+        setJournal(data.journal || []);
+        setPlannedMeals(data.plannedMeals || []);
+        setSavedRecipes(data.savedRecipes || defaultRecipes);
+        setDailyGoals(data.dailyGoals || { calories: 2000, protein: 150, carbs: 250, fats: 65 });
+      }
+      setDataLoading(false);
+    });
+
+    return unsubscribe;
+  }, [user]);
+
+  // Save to Firestore whenever data changes
+  const saveToFirestore = async (dataToSave: {
+    meals?: Meal[];
+    journal?: JournalEntry[];
+    plannedMeals?: PlannedMeal[];
+    savedRecipes?: Recipe[];
+    dailyGoals?: DailyGoals;
+  }) => {
+    if (!user) return;
+    
+    const userDocRef = doc(db, 'users', user.uid);
+    await setDoc(userDocRef, dataToSave, { merge: true });
+  };
+
+  useEffect(() => {
+    if (user && !dataLoading) {
+      saveToFirestore({ meals });
+    }
   }, [meals]);
 
   useEffect(() => {
-    localStorage.setItem('mealTracker_journal', JSON.stringify(journal));
+    if (user && !dataLoading) {
+      saveToFirestore({ journal });
+    }
   }, [journal]);
 
   useEffect(() => {
-    localStorage.setItem('mealTracker_plannedMeals', JSON.stringify(plannedMeals));
+    if (user && !dataLoading) {
+      saveToFirestore({ plannedMeals });
+    }
   }, [plannedMeals]);
 
   useEffect(() => {
-    localStorage.setItem('mealTracker_recipes', JSON.stringify(savedRecipes));
+    if (user && !dataLoading) {
+      saveToFirestore({ savedRecipes });
+    }
   }, [savedRecipes]);
 
   useEffect(() => {
-    localStorage.setItem('mealTracker_goals', JSON.stringify(dailyGoals));
+    if (user && !dataLoading) {
+      saveToFirestore({ dailyGoals });
+    }
   }, [dailyGoals]);
 
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  // Show loading screen
+  if (authLoading || dataLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <TrendingUp className="w-16 h-16 text-indigo-600 mx-auto mb-4 animate-pulse" />
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login screen if not authenticated
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+          <TrendingUp className="w-16 h-16 text-indigo-600 mx-auto mb-4" />
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Meal Tracker</h1>
+          <p className="text-gray-600 mb-8">Track your meals, reach your goals</p>
+          
+          <button
+            onClick={signInWithGoogle}
+            className="w-full bg-white border-2 border-gray-200 text-gray-700 py-3 px-6 rounded-lg font-semibold hover:bg-gray-50 transition-colors flex items-center justify-center gap-3"
+          >
+            <svg className="w-6 h-6" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            Sign in with Google
+          </button>
+          
+          <p className="text-sm text-gray-400 mt-6">Your data will sync across all your devices</p>
+        </div>
+      </div>
+    );
+  }
 
   const getTodayDate = () => {
     return new Date().toLocaleDateString('en-US', { 
@@ -722,12 +800,31 @@ export default function DietTracker() {
               <TrendingUp className="w-8 h-8 text-indigo-600" />
               <h1 className="text-3xl font-bold text-gray-800">Meal Tracker</h1>
             </div>
-            <button
-              onClick={() => setShowSettings(true)}
-              className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-            >
-              <Settings className="w-6 h-6" />
-            </button>
+            <div className="flex items-center gap-2">
+              {/* User Info */}
+              <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt="Profile" className="w-6 h-6 rounded-full" />
+                ) : (
+                  <User className="w-5 h-5 text-gray-500" />
+                )}
+                <span className="text-sm text-gray-700 hidden sm:inline">{user.displayName?.split(' ')[0]}</span>
+              </div>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                title="Settings"
+              >
+                <Settings className="w-6 h-6" />
+              </button>
+              <button
+                onClick={logout}
+                className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Sign out"
+              >
+                <LogOut className="w-6 h-6" />
+              </button>
+            </div>
           </div>
 
           {/* Settings Modal */}
