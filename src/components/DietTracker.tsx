@@ -1382,6 +1382,124 @@ export default function DietTracker() {
                   );
                 })()}
               </div>
+
+              {/* Daily Caloric Breakdown */}
+              <div className="mt-6 bg-white border border-gray-200 rounded-xl p-5">
+                <h3 className="font-semibold text-gray-800 mb-4">Daily Caloric Breakdown</h3>
+                {(() => {
+                  const weekDates = getWeekDates();
+                  const dailyData = weekDates.map(day => {
+                    const journalEntry = getJournalEntryByDate(day.dateString);
+                    const todayData = day.isToday ? getTodaysMealsForWeekly() : null;
+                    const dayTotals = day.isToday ? todayData?.totals : journalEntry?.totals;
+                    return {
+                      day: day.dayName.slice(0, 3),
+                      fullDay: day.dayName,
+                      date: day.shortDate,
+                      calories: dayTotals?.calories || 0,
+                      protein: dayTotals?.protein || 0,
+                      carbs: dayTotals?.carbs || 0,
+                      fats: dayTotals?.fats || 0,
+                      isToday: day.isToday
+                    };
+                  });
+                  
+                  const maxCalories = Math.max(...dailyData.map(d => d.calories), dailyGoals.calories);
+                  
+                  return (
+                    <div>
+                      {/* Bar Chart */}
+                      <div className="flex items-end justify-between gap-2 h-48 mb-4">
+                        {dailyData.map((day) => {
+                          const heightPercent = maxCalories > 0 ? (day.calories / maxCalories) * 100 : 0;
+                          const goalPercent = maxCalories > 0 ? (dailyGoals.calories / maxCalories) * 100 : 0;
+                          const isOverGoal = day.calories > dailyGoals.calories;
+                          
+                          return (
+                            <div key={day.day} className="flex-1 flex flex-col items-center">
+                              <div className="relative w-full h-40 flex items-end justify-center">
+                                {/* Goal line indicator */}
+                                <div 
+                                  className="absolute w-full border-t-2 border-dashed border-gray-300"
+                                  style={{ bottom: `${goalPercent}%` }}
+                                />
+                                {/* Bar */}
+                                <div 
+                                  className={`w-full max-w-[40px] rounded-t-lg transition-all duration-300 ${
+                                    day.isToday 
+                                      ? isOverGoal ? 'bg-red-500' : 'bg-indigo-600'
+                                      : isOverGoal ? 'bg-red-400' : 'bg-indigo-400'
+                                  }`}
+                                  style={{ height: `${heightPercent}%`, minHeight: day.calories > 0 ? '4px' : '0' }}
+                                  title={`${day.fullDay}: ${Math.round(day.calories)} cal`}
+                                />
+                              </div>
+                              <div className={`text-xs mt-2 font-medium ${day.isToday ? 'text-indigo-600' : 'text-gray-600'}`}>
+                                {day.day}
+                              </div>
+                              <div className="text-xs text-gray-400">{day.date}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      {/* Legend */}
+                      <div className="flex items-center justify-center gap-4 text-xs text-gray-500 mb-4">
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 bg-indigo-500 rounded"></div>
+                          <span>Under goal</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 bg-red-500 rounded"></div>
+                          <span>Over goal</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-6 border-t-2 border-dashed border-gray-300"></div>
+                          <span>Goal ({dailyGoals.calories} cal)</span>
+                        </div>
+                      </div>
+
+                      {/* Daily Details Table */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-gray-200">
+                              <th className="text-left py-2 text-gray-600 font-medium">Day</th>
+                              <th className="text-right py-2 text-indigo-600 font-medium">Calories</th>
+                              <th className="text-right py-2 text-red-600 font-medium">Protein</th>
+                              <th className="text-right py-2 text-yellow-600 font-medium">Carbs</th>
+                              <th className="text-right py-2 text-green-600 font-medium">Fats</th>
+                              <th className="text-right py-2 text-gray-600 font-medium">vs Goal</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dailyData.map((day) => {
+                              const diff = day.calories - dailyGoals.calories;
+                              return (
+                                <tr key={day.day} className={`border-b border-gray-100 ${day.isToday ? 'bg-indigo-50' : ''}`}>
+                                  <td className={`py-2 ${day.isToday ? 'font-semibold text-indigo-600' : 'text-gray-800'}`}>
+                                    {day.fullDay}
+                                    {day.isToday && <span className="ml-1 text-xs">(Today)</span>}
+                                  </td>
+                                  <td className="text-right py-2 font-medium">{Math.round(day.calories)}</td>
+                                  <td className="text-right py-2">{Math.round(day.protein)}g</td>
+                                  <td className="text-right py-2">{Math.round(day.carbs)}g</td>
+                                  <td className="text-right py-2">{Math.round(day.fats)}g</td>
+                                  <td className={`text-right py-2 font-medium ${
+                                    day.calories === 0 ? 'text-gray-400' : diff > 0 ? 'text-red-500' : 'text-green-500'
+                                  }`}>
+                                    {day.calories === 0 ? '-' : `${diff > 0 ? '+' : ''}${Math.round(diff)}`}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
           )}
 
