@@ -436,13 +436,21 @@ export default function DietTracker() {
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
       setShowCamera(true);
+      // Wait for modal to render, then attach stream
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+        }
+      }, 100);
     } catch {
       alert('Unable to access camera. Please check permissions.');
     }
@@ -461,13 +469,21 @@ export default function DietTracker() {
   const startRecipeCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
       setShowRecipeCamera(true);
+      // Wait for modal to render, then attach stream
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+        }
+      }, 100);
     } catch {
       alert('Unable to access camera. Please check permissions.');
     }
@@ -965,7 +981,9 @@ export default function DietTracker() {
                       ref={videoRef} 
                       autoPlay 
                       playsInline
-                      className="w-full rounded-lg mb-4"
+                      muted
+                      style={{ WebkitTransform: 'scaleX(1)' }}
+                      className="w-full rounded-lg mb-4 bg-black"
                     />
                     <button
                       onClick={capturePhoto}
@@ -1849,7 +1867,9 @@ export default function DietTracker() {
                           ref={videoRef} 
                           autoPlay 
                           playsInline
-                          className="w-full rounded-lg mb-4"
+                          muted
+                          style={{ WebkitTransform: 'scaleX(1)' }}
+                          className="w-full rounded-lg mb-4 bg-black"
                         />
                         <button
                           onClick={captureRecipePhoto}
